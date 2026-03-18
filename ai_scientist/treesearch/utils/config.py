@@ -1,5 +1,6 @@
 """configuration and setup utils"""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Hashable, cast, Literal, Optional
@@ -16,11 +17,18 @@ from . import tree_export
 from . import copytree, preproc_data, serialize
 
 shutup.mute_warnings()
+
+_LOG_LEVEL_NAMES = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR}
+_default_level = logging.WARNING
+_env_level = os.environ.get("AI_SCIENTIST_LOG_LEVEL", "").upper()
+if _env_level in _LOG_LEVEL_NAMES:
+    _default_level = _LOG_LEVEL_NAMES[_env_level]
+
 logging.basicConfig(
-    level="WARNING", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+    level=_default_level, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 logger = logging.getLogger("ai-scientist")
-logger.setLevel(logging.WARNING)
+logger.setLevel(_default_level)
 
 
 """ these dataclasses are just for type hinting, the actual config is in config.yaml """

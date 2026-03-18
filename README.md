@@ -70,6 +70,10 @@ By default, the system uses the `OPENAI_API_KEY` environment variable for OpenAI
 
 By default, the system uses the `GEMINI_API_KEY` environment variable for Gemini models through OpenAI API.
 
+#### OpenRouter (unified API for OpenAI, Claude, and others)
+
+You can use [OpenRouter](https://openrouter.ai/) for all models in `bfts_config.yaml` by using the `openrouter/` prefix and setting `OPENROUTER_API_KEY`. Example model IDs: `openrouter/openai/gpt-4o`, `openrouter/anthropic/claude-3.5-sonnet`. The default config can use OpenRouter for coding, feedback, and report models.
+
 #### Claude Models via AWS Bedrock
 
 To use Claude models provided by Amazon Bedrock, install the necessary additional packages:
@@ -80,7 +84,7 @@ Next, configure valid [AWS Credentials](https://docs.aws.amazon.com/cli/v1/userg
 
 #### Semantic Scholar API (Literature Search)
 
-Our code can optionally use a Semantic Scholar API Key (`S2_API_KEY`) for higher throughput during literature search [if you have one](https://www.semanticscholar.org/product/api). This is used during both the ideation and paper writing stages. The system should work without it, though you might encounter rate limits or reduced novelty checking during ideation. If you experience issues with Semantic Scholar, you can skip the citation phase during paper generation.
+Our code can optionally use a Semantic Scholar API Key (`S2_API_KEY`) for higher throughput during literature search [if you have one](https://www.semanticscholar.org/product/api). This is used during both the ideation and paper writing stages. **If you do not set `S2_API_KEY`, or if Semantic Scholar returns rate limit errors (429), the code automatically falls back to the [arXiv API](https://info.arxiv.org/help/api/index.html)** (free, no key required), so ideation and citation search can still run without any API key. If you experience other issues with Semantic Scholar, you can skip the citation phase during paper generation.
 
 #### Setting API Keys
 
@@ -88,6 +92,8 @@ Ensure you provide the necessary API keys as environment variables for the model
 ```bash
 export OPENAI_API_KEY="YOUR_OPENAI_KEY_HERE"
 export S2_API_KEY="YOUR_S2_KEY_HERE"
+# If using OpenRouter in bfts_config.yaml (e.g. openrouter/anthropic/claude-3.5-sonnet)
+# export OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY_HERE"
 # Set AWS credentials if using Bedrock
 # export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_ID"
 # export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY"

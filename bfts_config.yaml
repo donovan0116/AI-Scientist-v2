@@ -23,7 +23,7 @@ exec:
 generate_report: True
 # LLM settings for final report from journal
 report:
-  model: gpt-4o-2024-11-20
+  model: openrouter/openai/gpt-4o-2024-11-20
   temp: 1.0
 
 experiment:
@@ -52,21 +52,21 @@ agent:
   # whether to provide the agent with a preview of the data
   data_preview: False
 
-  # LLM settings for coding
+  # LLM settings for coding (use claude-3-5-sonnet-20241022 + ANTHROPIC_API_KEY for direct API; or anthropic.claude-3-5-sonnet-20241022-v2:0 for AWS Bedrock)
   code:
-    model: anthropic.claude-3-5-sonnet-20241022-v2:0
+    model: openrouter/anthropic/claude-3.5-sonnet
     temp: 1.0
     max_tokens: 12000
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
-    model: gpt-4o-2024-11-20
+    model: openrouter/openai/gpt-4o-2024-11-20
     # gpt-4o
     temp: 0.5
     max_tokens: 8192
 
   vlm_feedback:
-    model: gpt-4o-2024-11-20
+    model: openrouter/openai/gpt-4o-2024-11-20
     temp: 0.5
     max_tokens: null
 

@@ -14,9 +14,13 @@ ANTHROPIC_TIMEOUT_EXCEPTIONS = (
     anthropic.APIStatusError,
 )
 
-def get_ai_client(model : str, max_retries=2) -> anthropic.AnthropicBedrock:
-    client = anthropic.AnthropicBedrock(max_retries=max_retries)
-    return client
+def get_ai_client(model: str, max_retries=2):
+    """Use Bedrock only when model ID is Bedrock-style (e.g. anthropic.claude-...-v2:0).
+    Otherwise use direct Anthropic API with ANTHROPIC_API_KEY (e.g. claude-3-5-sonnet-20241022).
+    """
+    if model.startswith("bedrock/") or model.startswith("anthropic."):
+        return anthropic.AnthropicBedrock(max_retries=max_retries)
+    return anthropic.Anthropic(max_retries=max_retries)
 
 def query(
     system_message: str | None,

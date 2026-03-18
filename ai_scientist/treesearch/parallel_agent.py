@@ -400,9 +400,16 @@ class MinimalAgent:
                 "Your response should be a brief outline/sketch of your proposed solution in natural language (7-10 sentences), "
                 "followed by a single markdown code block (using the format ```python ... ```) which implements this solution and prints out the evaluation metric(s) if applicable. "
                 "There should be no additional headings or text in your response. Just natural language text followed by a newline and then the markdown code block. "
-                "Make sure to write concise code."
+                "Use exactly ```python (lowercase) for the code block. Make sure to write concise code."
             )
         }
+
+    @property
+    def _prompt_mandatory_output_fmt(self):
+        """Short, final reminder so the model outputs parseable plan+code."""
+        return (
+            "MANDATORY: Reply with (1) natural language plan only, then (2) exactly one block: line ```python, your code, line ```. Nothing after the closing ```."
+        )
 
     def _prompt_metricparse_resp_fmt(self):
         return {
@@ -481,6 +488,13 @@ class MinimalAgent:
         if self.cfg.agent.data_preview:
             prompt["Data Overview"] = self.data_preview
 
+        prompt["MANDATORY OUTPUT FORMAT (you must follow this exactly)"] = (
+            "Your reply must consist of exactly two parts with nothing else:\n"
+            "1. First, 7-10 sentences of natural language describing your plan (no markdown headers, no code here).\n"
+            "2. Then a single code block: on a new line write exactly ```python (lowercase), then your full runnable Python code, then on a new line exactly ```.\n"
+            "Do not put any text, headings, or explanation after the code block. Do not use ```Python or ```py; use exactly ```python."
+        )
+
         print("[cyan]--------------------------------[/cyan]")
         print("[cyan]self.task_desc[/cyan]")
         print("[cyan]" + self.task_desc + "[/cyan]")
@@ -517,6 +531,8 @@ class MinimalAgent:
         if self.cfg.agent.data_preview:
             prompt["Data Overview"] = self.data_preview
 
+        prompt["MANDATORY OUTPUT FORMAT"] = self._prompt_mandatory_output_fmt
+
         plan, code = self.plan_and_code_query(prompt)
         return Node(plan=plan, code=code, parent=parent_node)
 
@@ -538,6 +554,8 @@ class MinimalAgent:
 
         prompt["Instructions"] |= self._prompt_resp_fmt
         prompt["Instructions"] |= self._prompt_impl_guideline
+
+        prompt["MANDATORY OUTPUT FORMAT"] = self._prompt_mandatory_output_fmt
 
         plan, code = self.plan_and_code_query(prompt)
         return Node(
@@ -665,6 +683,9 @@ class MinimalAgent:
                 model=self.cfg.agent.code.model,
                 temperature=self.cfg.agent.code.temp,
             )
+            if completion_text is None:
+                print("LLM returned None, retrying...")
+                continue
 
             code = extract_code(completion_text)
             nl_text = extract_text_up_to_code(completion_text)
@@ -673,12 +694,33 @@ class MinimalAgent:
                 # merge all code blocks into a single string
                 return nl_text, code
 
-            print("Plan + code extraction failed, retrying...")
+            # Diagnose why extraction failed (see docs/API_NONE_DEBUG.md)
+            reason = []
+            if not nl_text:
+                reason.append("no natural language before first ``` (or response has no ```)")
+            if not code:
+                reason.append("no valid ```python ... ``` block or code failed syntax check")
+            print(
+                "Plan + code extraction failed, retrying... (reason: %s)"
+                % "; ".join(reason)
+            )
+            logger.debug(
+                "Extraction failure sample (first 600 chars): %s",
+                (completion_text or "")[:600],
+            )
             prompt["Parsing Feedback"] = (
                 "The code extraction failed. Make sure to use the format ```python ... ``` for the code blocks."
             )
         print("Final plan + code extraction attempt failed, giving up...")
-        return "", completion_text  # type: ignore
+        if completion_text is None:
+            raise RuntimeError(
+                "LLM returned None after all retries. API may be failing or returning empty content."
+            )
+        logger.warning(
+            "Using raw LLM output as code (extraction failed); execution will likely fail. "
+            "Check that agent.code.model returns ```python ... ``` and text before it."
+        )
+        return "", completion_text
 
     def parse_exec_result(
         self, node: Node, exec_result: ExecutionResult, workspace: str
@@ -1231,6 +1273,9 @@ class ParallelAgent:
                 model=self.cfg.agent.code.model,
                 temperature=self.cfg.agent.code.temp,
             )
+            if completion_text is None:
+                print("LLM returned None, retrying...")
+                continue
 
             code = extract_code(completion_text)
             nl_text = extract_text_up_to_code(completion_text)
@@ -1238,11 +1283,31 @@ class ParallelAgent:
             if code and nl_text:
                 # merge all code blocks into a single string
                 return nl_text, code
-            print("Plan + code extraction failed, retrying...")
+            reason = []
+            if not nl_text:
+                reason.append("no natural language before first ``` (or response has no ```)")
+            if not code:
+                reason.append("no valid ```python ... ``` block or code failed syntax check")
+            print(
+                "Plan + code extraction failed, retrying... (reason: %s)"
+                % "; ".join(reason)
+            )
+            logger.debug(
+                "Extraction failure sample (first 600 chars): %s",
+                (completion_text or "")[:600],
+            )
             prompt["Parsing Feedback"] = (
                 "The code extraction failed. Make sure to use the format ```python ... ``` for the code blocks."
             )
         print("Final plan + code extraction attempt failed, giving up...")
+        if completion_text is None:
+            raise RuntimeError(
+                "LLM returned None after all retries. API may be failing or returning empty content."
+            )
+        logger.warning(
+            "Using raw LLM output as code (extraction failed); execution will likely fail. "
+            "Check that agent.code.model returns ```python ... ``` and text before it."
+        )
         return "", completion_text
 
     def _generate_seed_eval_aggregation_node(

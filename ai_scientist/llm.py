@@ -51,6 +51,8 @@ AVAILABLE_LLMS = [
     "gemini-2.0-flash",
     "gemini-2.5-flash-preview-04-17",
     "gemini-2.5-pro-preview-03-25",
+    # Qwen models via OpenRouter
+    "openrouter/qwen/qwen3.5-9b",
     # GPT-OSS models via Ollama
     "ollama/gpt-oss:20b",
     "ollama/gpt-oss:120b",
@@ -112,6 +114,24 @@ def get_batch_responses_from_llm(
             stop=None,
         )
         content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
+    elif model.startswith("openrouter/"):
+        # OpenRouter uses OpenAI-compatible API; strip prefix for model id
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("openrouter/", "", 1),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=n_responses,
+            stop=None,
+        )
+        content = [r.message.content or "" for r in response.choices]
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
@@ -184,6 +204,23 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
+    elif "qwen" in model:
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("openrouter/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=n_responses,
+            stop=None,
+        )
+        content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
     else:
         content, new_msg_history = [], []
         for _ in range(n_responses):
@@ -226,6 +263,18 @@ def make_llm_call(client, model, temperature, system_message, prompt):
             n=1,
             stop=None,
         )
+    elif model.startswith("openrouter/"):
+        return client.chat.completions.create(
+            model=model.replace("openrouter/", "", 1),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
     elif "gpt" in model:
         return client.chat.completions.create(
             model=model,
@@ -238,6 +287,18 @@ def make_llm_call(client, model, temperature, system_message, prompt):
             n=1,
             stop=None,
             seed=0,
+        )
+    elif "qwen" in model:
+        return client.chat.completions.create(
+            model=model.replace("openrouter/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
         )
     elif "o1" in model or "o3" in model:
         return client.chat.completions.create(
@@ -323,6 +384,23 @@ def get_response_from_llm(
             stop=None,
         )
         content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model.startswith("openrouter/"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("openrouter/", "", 1),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        if content is None:
+            content = ""
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif "gpt" in model:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
@@ -434,6 +512,22 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif 'qwen' in model:
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("openrouter/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+        )
+        content = response.choices[0].message.content
+        if content is None:
+            content = ""
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -449,7 +543,11 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
-def extract_json_between_markers(llm_output: str) -> dict | None: 
+def extract_json_between_markers(llm_output: str) -> dict | None:
+    # Some providers may return message.content=None (e.g., tool calls / empty content)
+    if llm_output is None:
+        return None
+    llm_output = str(llm_output)
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
@@ -478,6 +576,16 @@ def extract_json_between_markers(llm_output: str) -> dict | None:
 
 
 def create_client(model) -> tuple[Any, str]:
+    if model.startswith("openrouter/"):
+        # OpenRouter OpenAI-compatible endpoint; strip prefix for model id
+        print(f"Using OpenRouter API with model {model}.")
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
+            ),
+            model.replace("openrouter/", "", 1),
+        )
     if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model
@@ -530,6 +638,15 @@ def create_client(model) -> tuple[Any, str]:
                 base_url="https://openrouter.ai/api/v1",
             ),
             "meta-llama/llama-3.1-405b-instruct",
+        )
+    elif model == "openrouter/qwen/qwen3.5-9b":
+        print(f"Using OpenRouter API with {model}.")
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
+            ),
+            "qwen/qwen3.5-9b",
         )
     elif 'gemini' in model:
         print(f"Using OpenAI API with {model}.")

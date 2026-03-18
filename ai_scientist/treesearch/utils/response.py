@@ -1,7 +1,10 @@
 import json
+import logging
 import re
 
 import black
+
+logger = logging.getLogger("ai-scientist")
 
 
 def wrap_code(code: str, lang="python") -> str:
@@ -54,30 +57,40 @@ def trim_long_string(string, threshold=5100, k=2500):
 
 def extract_code(text):
     """Extract python code blocks from the text."""
+    if text is None:
+        raise ValueError("extract_code received None (API may have returned no content)")
     parsed_codes = []
 
-    # When code is in a text or python block
-    matches = re.findall(r"```(python)?\n*(.*?)\n*```", text, re.DOTALL)
-    for match in matches:
-        code_block = match[1]
-        parsed_codes.append(code_block)
+    # When code is in a text or python block (accept python/Python/PYTHON etc.)
+    matches = re.findall(r"```(?:[pP]ython)?\s*\n(.*?)```", text, re.DOTALL)
+    for code_block in matches:
+        parsed_codes.append(code_block.strip())
 
     # When the entire text is code or backticks of the code block is missing
     if len(parsed_codes) == 0:
-        matches = re.findall(r"^(```(python)?)?\n?(.*?)\n?(```)?$", text, re.DOTALL)
+        matches = re.findall(r"^(?:```(?:[pP]ython)?)?\s*\n?(.*?)\n?(?:```)?$", text, re.DOTALL)
         if matches:
-            code_block = matches[0][2]
-            parsed_codes.append(code_block)
+            code_block = matches[0].strip()
+            if code_block:
+                parsed_codes.append(code_block)
 
     # validate the parsed codes
-    valid_code_blocks = [
-        format_code(c) for c in parsed_codes if is_valid_python_script(c)
-    ]
+    valid_code_blocks = []
+    for c in parsed_codes:
+        if is_valid_python_script(c):
+            valid_code_blocks.append(format_code(c))
+        else:
+            logger.debug(
+                "extract_code: dropped block (invalid Python syntax), first 200 chars: %s",
+                c[:200] if c else "",
+            )
     return format_code("\n\n".join(valid_code_blocks))
 
 
 def extract_text_up_to_code(s):
     """Extract (presumed) natural language text up to the start of the first code block."""
+    if s is None:
+        raise ValueError("extract_text_up_to_code received None (API may have returned no content)")
     if "```" not in s:
         return ""
     return s[: s.find("```")].strip()

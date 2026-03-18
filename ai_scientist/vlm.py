@@ -104,6 +104,16 @@ def make_vlm_call(client, model, temperature, system_message, prompt):
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
         )
+    elif model.startswith("openrouter/"):
+        return client.chat.completions.create(
+            model=model.replace("openrouter/", "", 1),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+        )
     elif "gpt" in model:
         return client.chat.completions.create(
             model=model,
@@ -194,6 +204,15 @@ def get_response_from_vlm(
 
 def create_client(model: str) -> tuple[Any, str]:
     """Create client for vision-language model."""
+    if model.startswith("openrouter/"):
+        print(f"Using OpenRouter API with model {model}.")
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
+            ),
+            model.replace("openrouter/", "", 1),
+        )
     if model in [
         "gpt-4o-2024-05-13",
         "gpt-4o-2024-08-06",

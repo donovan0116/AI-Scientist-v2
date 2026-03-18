@@ -1,0 +1,57 @@
+agent:
+  code:
+    max_tokens: 12000
+    model: openrouter/anthropic/claude-sonnet-4.6
+    temp: 1.0
+  data_preview: false
+  expose_prediction: false
+  feedback:
+    max_tokens: 8192
+    model: openrouter/qwen/qwen3.5-9b
+    temp: 0.5
+  k_fold_validation: 1
+  multi_seed_eval:
+    num_seeds: 3
+  num_workers: 4
+  search:
+    debug_prob: 0.5
+    max_debug_depth: 3
+    num_drafts: 3
+  select_node:
+    model: openrouter/qwen/qwen3.5-9b
+    temp: 0.3
+  stages:
+    stage1_max_iters: 20
+    stage2_max_iters: 12
+    stage3_max_iters: 12
+    stage4_max_iters: 18
+  steps: 5
+  summary:
+    model: openrouter/qwen/qwen3.5-9b
+    temp: 0.3
+  type: parallel
+  vlm_feedback:
+    max_tokens: null
+    model: openrouter/qwen/qwen3.5-9b
+    temp: 0.5
+copy_data: true
+data_dir: experiments/2026-03-16_11-10-59_silent_agents_coordination_attempt_0/data
+debug:
+  stage4: false
+desc_file: experiments/2026-03-16_11-10-59_silent_agents_coordination_attempt_0/idea.json
+eval: null
+exec:
+  agent_file_name: runfile.py
+  format_tb_ipython: false
+  timeout: 3600
+exp_name: run
+experiment:
+  num_syn_datasets: 1
+generate_report: true
+goal: null
+log_dir: experiments/2026-03-16_11-10-59_silent_agents_coordination_attempt_0/logs
+preprocess_data: false
+report:
+  model: openrouter/qwen/qwen3.5-9b
+  temp: 1.0
+workspace_dir: experiments/2026-03-16_11-10-59_silent_agents_coordination_attempt_0

@@ -204,15 +204,15 @@ if __name__ == "__main__":
 
     # If load_code is True, get the Python file with same name as JSON
     code = None
+    code_path = None
     if args.load_code:
         code_path = args.load_ideas.rsplit(".", 1)[0] + ".py"
         if os.path.exists(code_path):
             with open(code_path, "r") as f:
                 code = f.read()
         else:
-            print(f"Warning: Code file {code_path} not found")
-    else:
-        code_path = None
+            print(f"Warning: Code file {code_path} not found; running without initial code.")
+            code_path = None  # do not pass to idea_to_markdown so no assertion
 
     idea_to_markdown(ideas[args.idea_idx], idea_path_md, code_path)
 

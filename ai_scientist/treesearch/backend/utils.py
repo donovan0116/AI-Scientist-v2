@@ -14,19 +14,43 @@ from typing import Callable
 
 logger = logging.getLogger("ai-scientist")
 
+# Store last exception reason for on_backoff callback (backoff retries on falsy return)
+_last_backoff_reason: list[str] = [""]
+
+
+def _log_backoff_reason(details: dict) -> None:
+    """Log the actual error that caused this backoff (so it appears next to 'Backing off ...')."""
+    reason = _last_backoff_reason[0]
+    if reason:
+        logger.warning(
+            "Backing off backoff_create(...) — connection/API error reason: %s",
+            reason,
+        )
+
 
 @backoff.on_predicate(
     wait_gen=backoff.expo,
     max_value=60,
     factor=1.5,
+    on_backoff=_log_backoff_reason,
 )
 def backoff_create(
     create_fn: Callable, retry_exceptions: list[Exception], *args, **kwargs
 ):
+    _last_backoff_reason[0] = ""
     try:
         return create_fn(*args, **kwargs)
     except retry_exceptions as e:
-        logger.info(f"Backoff exception: {e}")
+        # Build a clear reason string (include status code for API errors if available)
+        reason_parts = [f"{type(e).__name__}: {e!s}"]
+        if getattr(e, "status_code", None) is not None:
+            reason_parts.append(f"HTTP status={e.status_code}")
+        if getattr(e, "response", None) is not None:
+            body = getattr(e.response, "text", None) or getattr(e.response, "body", None)
+            if body and len(str(body)) < 500:
+                reason_parts.append(f"response={body!s}")
+        _last_backoff_reason[0] = " ".join(reason_parts)
+        logger.info("Backoff exception: %s", e)
         return False
 
 
